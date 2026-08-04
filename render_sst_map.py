@@ -1,18 +1,16 @@
 """
 render_sst_map.py
-Fetches NOAA OISST v2.1 daily files directly from NCEI (1-2 day lag, always current).
-Downloads last 7 daily files, computes 7-day mean SST anomaly.
-Renders Indian Ocean heatmap with IOD pole boxes.
+Downloads last 30 daily OISST v2.1 files from NCEI.
+Computes 7-day and 30-day SST anomaly means.
+Renders two Indian Ocean heatmaps with IOD pole boxes.
 
-File pattern: https://www.ncei.noaa.gov/data/sea-surface-temperature-optimum-interpolation
-              /v2.1/access/avhrr/YYYYMM/oisst-avhrr-v02r01.YYYYMMDD.nc
+Outputs:
+  output/sst_anomaly_weekly.png   — 7-day mean
+  output/sst_anomaly_monthly.png  — 30-day mean
+  output/sst_poles.json           — pole values for both periods
 
-Each file ~4MB (global, netCDF4). We subset to Indian Ocean after download.
-Anomaly = SST - monthly climatology (1971-2000, interpolated to daily 0.25°).
-Climatology sourced from PSL one-time download (sst.day.mean.ltm.1971-2000.nc subset).
-
-Outputs: output/sst_anomaly.png
-         output/sst_poles.json
+Run: python render_sst_map.py
+Requires: pip install requests numpy netCDF4 matplotlib cartopy
 """
 
 import netCDF4 as nc
@@ -28,164 +26,114 @@ import tempfile
 from datetime import datetime, date, timedelta
 
 OUTPUT_DIR  = os.path.join(os.path.dirname(__file__), "output")
-PNG_PATH    = os.path.join(OUTPUT_DIR, "sst_anomaly.png")
-POLES_PATH  = os.path.join(OUTPUT_DIR, "sst_poles.json")
-CLIM_PATH   = os.path.join(OUTPUT_DIR, "sst_clim_indian_ocean.npy")  # cached climatology
-
-NCEI_BASE   = ("https://www.ncei.noaa.gov/data/"
-               "sea-surface-temperature-optimum-interpolation/v2.1/access/avhrr")
+NCEI_BASE   = ("https://www.ncei.noaa.gov/data/sea-surface-temperature-optimum"
+               "-interpolation/v2.1/access/avhrr")
 HEADERS     = {"User-Agent": "Mozilla/5.0 (compatible; IOD-monitor/1.0)"}
 
-# Indian Ocean region (0.25° grid)
-# lat: -89.875 to 89.875 → index = (lat + 89.875) / 0.25
-# lon:   0.125 to 359.875 → index = (lon - 0.125)  / 0.25
-LAT_S_DEG, LAT_N_DEG = -30, 30
+# Indian Ocean region
+LAT_S_DEG, LAT_N_DEG = -30,  30
 LON_W_DEG, LON_E_DEG =  30, 130
-
-def lat_idx(lat): return round((lat + 89.875) / 0.25)
-def lon_idx(lon): return round((lon - 0.125)  / 0.25)
-
-REG_LAT_S = lat_idx(LAT_S_DEG);  REG_LAT_N = lat_idx(LAT_N_DEG)
-REG_LON_W = lon_idx(LON_W_DEG);  REG_LON_E = lon_idx(LON_E_DEG)
-
-# IOD pole boxes (indices relative to Indian Ocean subset)
-def rel_lat(lat): return lat_idx(lat) - REG_LAT_S
-def rel_lon(lon): return lon_idx(lon) - REG_LON_W
-
-W_LAT = slice(rel_lat(-10), rel_lat(10)  + 1)  # 10S–10N
-W_LON = slice(rel_lon(50),  rel_lon(70)  + 1)  # 50–70E
-E_LAT = slice(rel_lat(-10), rel_lat(0)   + 1)  # 10S–0N
-E_LON = slice(rel_lon(90),  rel_lon(110) + 1)  # 90–110E
-
-
-def get_candidate_dates(n=10):
-    """Return last n dates to try (most recent first). Skip today — file not ready."""
-    today = date.today()
-    return [today - timedelta(days=i) for i in range(1, n + 1)]
 
 
 def build_url(d):
+    """Try preliminary filename first (recent), then final (older >2 weeks)."""
     ym  = d.strftime("%Y%m")
     ymd = d.strftime("%Y%m%d")
-    return f"{NCEI_BASE}/{ym}/oisst-avhrr-v02r01.{ymd}.nc"
+    today = date.today()
+    if (today - d).days <= 14:
+        return (f"{NCEI_BASE}/{ym}/oisst-avhrr-v02r01.{ymd}_preliminary.nc",
+                f"{NCEI_BASE}/{ym}/oisst-avhrr-v02r01.{ymd}.nc")
+    else:
+        return (f"{NCEI_BASE}/{ym}/oisst-avhrr-v02r01.{ymd}.nc",
+                f"{NCEI_BASE}/{ym}/oisst-avhrr-v02r01.{ymd}_preliminary.nc")
 
 
-def download_daily_sst(d, tmpdir):
+def download_file(d, tmpdir):
     """Download one daily OISST file. Returns local path or None."""
-    url      = build_url(d)
-    out_path = os.path.join(tmpdir, f"oisst_{d.isoformat()}.nc")
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=60, stream=True)
-        r.raise_for_status()
-        with open(out_path, "wb") as f:
-            for chunk in r.iter_content(chunk_size=1024 * 256):
-                f.write(chunk)
-        size_mb = os.path.getsize(out_path) / 1024 / 1024
-        print(f"  {d}  OK  ({size_mb:.1f} MB)")
-        return out_path
-    except Exception as e:
-        print(f"  {d}  SKIP  ({e})")
-        return None
+    urls = build_url(d)
+    out  = os.path.join(tmpdir, f"oisst_{d.isoformat()}.nc")
+    for url in urls:
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=60, stream=True)
+            r.raise_for_status()
+            with open(out, "wb") as f:
+                for chunk in r.iter_content(1024 * 256):
+                    f.write(chunk)
+            size_mb = os.path.getsize(out) / 1024 / 1024
+            print(f"  {d}  OK  ({size_mb:.1f} MB)  {url.split('/')[-1]}")
+            return out
+        except Exception:
+            continue
+    print(f"  {d}  SKIP")
+    return None
 
 
-def extract_indian_ocean(nc_path):
+def extract_anom(nc_path):
     """
-    Read one daily OISST file and extract Indian Ocean SST subset.
-    Returns 2D array (lat, lon) of SST in °C.
+    Extract Indian Ocean SST anomaly from one daily file.
+    Uses set_auto_maskandscale(False) to handle raw int16 correctly.
+    Returns 2D masked array (lat, lon) in °C.
     """
-    ds  = nc.Dataset(nc_path)
-    # Variable name is 'sst', shape (1, 1, lat, lon) — time + zlev dimensions
-    sst = ds.variables['sst'][0, 0,
-                               REG_LAT_S:REG_LAT_N + 1,
-                               REG_LON_W:REG_LON_E + 1]
-    # Apply scale + offset if present
-    scale  = getattr(ds.variables['sst'], 'scale_factor',  1.0)
-    offset = getattr(ds.variables['sst'], 'add_offset',    0.0)
-    fill   = getattr(ds.variables['sst'], '_FillValue',    None)
+    ds       = nc.Dataset(nc_path)
+    anom_var = ds.variables['anom']
+    lats     = ds.variables['lat'][:]
+    lons     = ds.variables['lon'][:]
+
+    # Find Indian Ocean indices using actual lat/lon values
+    lat_s = int(np.argmin(np.abs(lats - LAT_S_DEG)))
+    lat_n = int(np.argmin(np.abs(lats - LAT_N_DEG)))
+    lon_w = int(np.argmin(np.abs(lons - LON_W_DEG)))
+    lon_e = int(np.argmin(np.abs(lons - LON_E_DEG)))
+
+    # Disable auto scaling — handle manually to avoid fill value issues
+    anom_var.set_auto_maskandscale(False)
+    raw   = anom_var[0, 0, lat_s:lat_n+1, lon_w:lon_e+1]
+    scale = float(anom_var.scale_factor)
+    fill  = int(anom_var._FillValue)
     ds.close()
 
-    sst = sst.astype(np.float32) * scale + offset
-    if fill is not None:
-        sst = np.ma.masked_where(np.abs(sst - (fill * scale + offset)) < 0.01, sst)
-    return sst
+    masked = np.ma.masked_where(raw == fill, raw)
+    return masked.astype(np.float32) * scale
 
 
-def get_climatology(month, shape):
-    """
-    Get monthly SST climatology for the Indian Ocean region.
-    Uses PSL 1971-2000 LTM via OPeNDAP (one-time subset, cached as .npy).
-    Falls back to approximate values if OPeNDAP unavailable.
-    """
-    clim_dir  = OUTPUT_DIR
-    clim_file = os.path.join(clim_dir, f"sst_clim_m{month:02d}.npy")
+def compute_poles(anom_2d, lats_subset, lons_subset):
+    """Compute west and east pole box averages."""
+    w_lat = np.where((lats_subset >= -10) & (lats_subset <= 10))[0]
+    w_lon = np.where((lons_subset >=  50) & (lons_subset <= 70))[0]
+    e_lat = np.where((lats_subset >= -10) & (lats_subset <=  0))[0]
+    e_lon = np.where((lons_subset >=  90) & (lons_subset <= 110))[0]
 
-    if os.path.exists(clim_file):
-        print(f"  Climatology: loaded from cache (month {month})")
-        return np.load(clim_file)
+    west_box = anom_2d[np.ix_(w_lat, w_lon)]
+    east_box = anom_2d[np.ix_(e_lat, e_lon)]
 
-    # Try fetching from PSL OPeNDAP
-    try:
-        print(f"  Climatology: fetching month {month} from PSL LTM...")
-        CLIM_URL = (
-            "https://psl.noaa.gov/thredds/dodsC/Datasets/noaa.oisst.v2.highres/"
-            "sst.day.mean.ltm.1971-2000.nc"
-            f"?sst[{month-1}:1:{month-1}]"
-            f"[{REG_LAT_S}:1:{REG_LAT_N}]"
-            f"[{REG_LON_W}:1:{REG_LON_E}]"
-        )
-        ds   = nc.Dataset(CLIM_URL)
-        clim = ds.variables['sst'][0]
-        scale  = getattr(ds.variables['sst'], 'scale_factor',  1.0)
-        offset = getattr(ds.variables['sst'], 'add_offset',    0.0)
-        fill   = getattr(ds.variables['sst'], '_FillValue',    None)
-        ds.close()
-
-        clim = clim.astype(np.float32) * scale + offset
-        if fill is not None:
-            clim = np.ma.masked_where(
-                np.abs(clim - (fill * scale + offset)) < 0.01, clim)
-
-        os.makedirs(clim_dir, exist_ok=True)
-        np.save(clim_file, np.array(clim))
-        print(f"  Climatology: cached to {clim_file}")
-        return clim
-
-    except Exception as e:
-        print(f"  Climatology: OPeNDAP failed ({e}) — using zero baseline")
-        print("  WARNING: anomaly will be relative to 0°C, not climatology")
-        return np.zeros(shape)
+    west = round(float(np.ma.mean(west_box)), 3)
+    east = round(float(np.ma.mean(east_box)), 3)
+    dmi  = round(west - east, 3)
+    return west, east, dmi
 
 
-def compute_poles(anom_2d):
-    west = float(np.ma.mean(anom_2d[W_LAT, W_LON]))
-    east = float(np.ma.mean(anom_2d[E_LAT, E_LON]))
-    return round(west, 3), round(east, 3), round(west - east, 3)
-
-
-def render_map(anom_mean, date_range, west, east, dmi):
-    lats  = np.linspace(LAT_S_DEG, LAT_N_DEG, anom_mean.shape[0])
-    lons  = np.linspace(LON_W_DEG, LON_E_DEG, anom_mean.shape[1])
+def render_map(anom_2d, lats, lons, date_start, date_end,
+               west, east, dmi, label, out_path):
+    """Render one SST anomaly map and save to out_path."""
     lon2d, lat2d = np.meshgrid(lons, lats)
     vmax      = 2.0
     cmap      = plt.cm.RdBu_r
-    start_str = date_range[0].isoformat()
-    end_str   = date_range[-1].isoformat()
-    n_days    = len(date_range)
-
-    rendered = False
+    n_days    = (date_end - date_start).days + 1
+    phase_str = ("Positive IOD" if dmi >= 0.4
+                 else "Negative IOD" if dmi <= -0.4 else "Neutral")
+    rendered  = False
 
     try:
         import cartopy.crs     as ccrs
         import cartopy.feature as cfeature
 
         fig = plt.figure(figsize=(13, 6), facecolor='#0a0f1a')
-        ax  = fig.add_subplot(1, 1, 1,
-                              projection=ccrs.PlateCarree(),
+        ax  = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree(),
                               facecolor='#0d1b2e')
         ax.set_extent([LON_W_DEG, LON_E_DEG, LAT_S_DEG, LAT_N_DEG],
                       crs=ccrs.PlateCarree())
 
-        im = ax.pcolormesh(lon2d, lat2d, anom_mean,
+        im = ax.pcolormesh(lon2d, lat2d, anom_2d,
                            transform=ccrs.PlateCarree(),
                            cmap=cmap, vmin=-vmax, vmax=vmax,
                            shading='auto', zorder=1)
@@ -197,7 +145,6 @@ def render_map(anom_mean, date_range, west, east, dmi):
             'physical', 'coastline', '110m',
             facecolor='none', edgecolor='#4a5568', linewidth=0.7), zorder=3)
 
-        # Gridlines — draw_labels=False avoids LinearRing crash
         ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=False,
                      linewidth=0.3, color='#334155', alpha=0.7,
                      xlocs=range(30, 131, 20), ylocs=range(-30, 31, 10))
@@ -206,65 +153,69 @@ def render_map(anom_mean, date_range, west, east, dmi):
         ax.set_yticks(range(-30, 31, 10), crs=ccrs.PlateCarree())
         ax.set_xticklabels([f'{x}°E' for x in range(30, 131, 20)],
                            color='#64748b', fontsize=7.5)
-        ax.set_yticklabels([f'{abs(y)}°{"S" if y<0 else "N" if y>0 else ""}' 
-                            for y in range(-30, 31, 10)],
-                           color='#64748b', fontsize=7.5)
+        ax.set_yticklabels(
+            [f'{abs(y)}°{"S" if y<0 else "N" if y>0 else ""}'
+             for y in range(-30, 31, 10)],
+            color='#64748b', fontsize=7.5)
         ax.tick_params(color='#334155')
 
         # Pole boxes
-        ax.add_patch(mpatches.Rectangle((50, -10), 20, 20,
-            fill=False, edgecolor='#f59e0b', linewidth=2.0,
-            transform=ccrs.PlateCarree(), zorder=5))
-        ax.add_patch(mpatches.Rectangle((90, -10), 20, 10,
-            fill=False, edgecolor='#818cf8', linewidth=2.0,
-            transform=ccrs.PlateCarree(), zorder=5))
+        ax.add_patch(mpatches.Rectangle(
+            (50, -10), 20, 20, fill=False, edgecolor='#f59e0b',
+            linewidth=2.0, transform=ccrs.PlateCarree(), zorder=5))
+        ax.add_patch(mpatches.Rectangle(
+            (90, -10), 20, 10, fill=False, edgecolor='#818cf8',
+            linewidth=2.0, transform=ccrs.PlateCarree(), zorder=5))
 
         ax.text(60, 14, f'W: {west:+.2f}°C',
                 transform=ccrs.PlateCarree(), zorder=6,
                 color='#f59e0b', fontsize=9, fontweight='bold', ha='center',
-                bbox=dict(boxstyle='round,pad=0.25', fc='#0a0f1a', alpha=0.8, ec='none'))
+                bbox=dict(boxstyle='round,pad=0.25', fc='#0a0f1a',
+                          alpha=0.8, ec='none'))
         ax.text(100, 2, f'E: {east:+.2f}°C',
                 transform=ccrs.PlateCarree(), zorder=6,
                 color='#818cf8', fontsize=9, fontweight='bold', ha='center',
-                bbox=dict(boxstyle='round,pad=0.25', fc='#0a0f1a', alpha=0.8, ec='none'))
+                bbox=dict(boxstyle='round,pad=0.25', fc='#0a0f1a',
+                          alpha=0.8, ec='none'))
 
         for sp in ax.spines.values():
             sp.set_edgecolor('#334155')
 
         rendered = True
-        print("  Rendered with Cartopy")
+        print(f"  [{label}] Rendered with Cartopy")
 
     except Exception as e:
-        print(f"  Cartopy failed ({e}) — using Matplotlib fallback")
+        print(f"  [{label}] Cartopy failed ({e}) — Matplotlib fallback")
         plt.close('all')
 
     if not rendered:
         fig, ax = plt.subplots(figsize=(13, 6), facecolor='#0a0f1a')
         ax.set_facecolor('#0d1b2e')
-        im = ax.pcolormesh(lon2d, lat2d, anom_mean,
+        im = ax.pcolormesh(lon2d, lat2d, anom_2d,
                            cmap=cmap, vmin=-vmax, vmax=vmax, shading='auto')
-        ax.set_xlim(LON_W_DEG, LON_E_DEG); ax.set_ylim(LAT_S_DEG, LAT_N_DEG)
+        ax.set_xlim(LON_W_DEG, LON_E_DEG)
+        ax.set_ylim(LAT_S_DEG, LAT_N_DEG)
         ax.set_xticks(range(30, 131, 20))
         ax.set_yticks(range(-30, 31, 10))
         ax.set_xticklabels([f'{x}°E' for x in range(30, 131, 20)],
                            color='#64748b', fontsize=8)
-        ax.set_yticklabels([f'{abs(y)}°{"S" if y<0 else "N" if y>0 else ""}' 
-                            for y in range(-30, 31, 10)],
-                           color='#64748b', fontsize=8)
+        ax.set_yticklabels(
+            [f'{abs(y)}°{"S" if y<0 else "N" if y>0 else ""}'
+             for y in range(-30, 31, 10)], color='#64748b', fontsize=8)
         ax.axhline(0, color='#334155', linewidth=0.4, linestyle='--')
-        ax.add_patch(mpatches.Rectangle((50,-10), 20, 20,
-            fill=False, edgecolor='#f59e0b', linewidth=2))
-        ax.add_patch(mpatches.Rectangle((90,-10), 20, 10,
-            fill=False, edgecolor='#818cf8', linewidth=2))
+        ax.add_patch(mpatches.Rectangle(
+            (50,-10), 20, 20, fill=False, edgecolor='#f59e0b', linewidth=2))
+        ax.add_patch(mpatches.Rectangle(
+            (90,-10), 20, 10, fill=False, edgecolor='#818cf8', linewidth=2))
         ax.text(60, 14, f'W: {west:+.2f}°C', color='#f59e0b',
                 fontsize=9, fontweight='bold', ha='center',
                 bbox=dict(boxstyle='round,pad=0.25', fc='#0a0f1a', alpha=0.8))
         ax.text(100, 2, f'E: {east:+.2f}°C', color='#818cf8',
                 fontsize=9, fontweight='bold', ha='center',
                 bbox=dict(boxstyle='round,pad=0.25', fc='#0a0f1a', alpha=0.8))
-        print("  Rendered with Matplotlib fallback")
+        print(f"  [{label}] Rendered with Matplotlib fallback")
 
-    # Colorbar + title
+    # Colorbar
     cbar = plt.colorbar(im, ax=ax, orientation='vertical',
                         pad=0.02, fraction=0.025, extend='both')
     cbar.set_label('SST Anomaly (°C)', color='#94a3b8', fontsize=9)
@@ -272,21 +223,21 @@ def render_map(anom_mean, date_range, west, east, dmi):
     plt.setp(cbar.ax.yaxis.get_ticklabels(), color='#94a3b8')
     cbar.outline.set_edgecolor('#334155')
 
-    phase_str = ("Positive IOD" if dmi >= 0.4
-                 else "Negative IOD" if dmi <= -0.4 else "Neutral")
     fig.suptitle(
-        f'Indian Ocean SST Anomaly  ·  DMI (W−E) = {dmi:+.3f}°C  [{phase_str}]\n'
-        f'{n_days}-day mean  {start_str} → {end_str}  '
+        f'Indian Ocean SST Anomaly — {label}  ·  '
+        f'DMI (W−E) = {dmi:+.3f}°C  [{phase_str}]\n'
+        f'{n_days}-day mean  {date_start} → {date_end}  '
         f'·  NOAA OISST v2.1 (0.25°)  ·  Anom vs 1971-2000 clim',
         color='#e2e8f0', fontsize=10, y=0.99
     )
 
     plt.tight_layout(rect=[0, 0, 1, 0.95])
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    plt.savefig(PNG_PATH, dpi=150, bbox_inches='tight',
+    plt.savefig(out_path, dpi=150, bbox_inches='tight',
                 facecolor='#0a0f1a', edgecolor='none')
     plt.close()
-    print(f"  Saved: {PNG_PATH}  ({os.path.getsize(PNG_PATH)/1024:.0f} KB)")
+    kb = os.path.getsize(out_path) / 1024
+    print(f"  [{label}] Saved: {out_path}  ({kb:.0f} KB)")
 
 
 def main():
@@ -299,78 +250,135 @@ def main():
     errors = []
 
     try:
-        candidates = get_candidate_dates(n=10)
-        print(f"Trying dates: {candidates[0]} → {candidates[-1]}")
+        today      = date.today()
+        # Start from 2 days ago (yesterday often not ready)
+        # Collect up to 35 attempts to get 30 good files
+        candidates = [today - timedelta(days=i) for i in range(2, 37)]
 
-        sst_stack  = []
-        good_dates = []
+        print(f"Downloading up to 30 daily files "
+              f"({candidates[0]} → {candidates[-1]})...")
+
+        daily_anoms = []   # list of 2D arrays, newest first
+        good_dates  = []
+        lats_sub    = None
+        lons_sub    = None
 
         with tempfile.TemporaryDirectory() as tmpdir:
             for d in candidates:
-                if len(good_dates) >= 7:
+                if len(good_dates) >= 30:
                     break
-                path = download_daily_sst(d, tmpdir)
-                if path:
-                    sst = extract_indian_ocean(path)
-                    sst_stack.append(sst)
+                path = download_file(d, tmpdir)
+                if not path:
+                    continue
+
+                try:
+                    # Get lat/lon from first file
+                    if lats_sub is None:
+                        ds = nc.Dataset(path)
+                        lats_all = ds.variables['lat'][:]
+                        lons_all = ds.variables['lon'][:]
+                        lat_s = int(np.argmin(np.abs(lats_all - LAT_S_DEG)))
+                        lat_n = int(np.argmin(np.abs(lats_all - LAT_N_DEG)))
+                        lon_w = int(np.argmin(np.abs(lons_all - LON_W_DEG)))
+                        lon_e = int(np.argmin(np.abs(lons_all - LON_E_DEG)))
+                        lats_sub = np.array(lats_all[lat_s:lat_n+1])
+                        lons_sub = np.array(lons_all[lon_w:lon_e+1])
+                        ds.close()
+
+                    anom = extract_anom(path)
+                    daily_anoms.append(anom)
                     good_dates.append(d)
 
-        if not good_dates:
-            raise RuntimeError("No OISST files could be downloaded")
+                except Exception as e:
+                    print(f"  {d}  extract failed: {e}")
+                    continue
 
-        good_dates = sorted(good_dates)  # chronological
-        print(f"\nDownloaded {len(good_dates)} daily files: "
+        if len(good_dates) < 7:
+            raise RuntimeError(
+                f"Only {len(good_dates)} files — need at least 7")
+
+        good_dates = sorted(good_dates)   # chronological
+        daily_anoms = list(reversed(daily_anoms))  # now oldest→newest
+
+        print(f"\nGot {len(good_dates)} files: "
               f"{good_dates[0]} → {good_dates[-1]}")
 
-        # 7-day mean SST
-        sst_mean = np.ma.mean(np.ma.stack(sst_stack), axis=0)
-        print(f"SST mean shape: {sst_mean.shape}")
+        # 7-day mean (last 7)
+        anom_7d     = np.ma.mean(np.ma.stack(daily_anoms[-7:]),  axis=0)
+        dates_7d    = good_dates[-7:]
 
-        # Climatology for the most recent month
-        month = good_dates[-1].month
-        clim  = get_climatology(month, sst_mean.shape)
+        # 30-day mean (all)
+        anom_30d    = np.ma.mean(np.ma.stack(daily_anoms),        axis=0)
+        dates_30d   = good_dates
 
-        # Anomaly
-        anom_mean = sst_mean - clim
-        print(f"Anomaly range: {float(np.ma.min(anom_mean)):+.2f} to "
-              f"{float(np.ma.max(anom_mean)):+.2f}°C")
+        print(f"\n7-day  mean shape: {anom_7d.shape}")
+        print(f"30-day mean shape: {anom_30d.shape}")
 
         # Pole values
-        west, east, dmi = compute_poles(anom_mean)
-        print(f"West pole (50-70E, 10S-10N): {west:+.3f}°C")
-        print(f"East pole (90-110E, 10S-0N): {east:+.3f}°C")
-        print(f"Derived DMI (W-E):            {dmi:+.3f}°C")
+        w7,  e7,  d7  = compute_poles(anom_7d,  lats_sub, lons_sub)
+        w30, e30, d30 = compute_poles(anom_30d, lats_sub, lons_sub)
 
-        # Render
-        render_map(anom_mean, good_dates, west, east, dmi)
+        print(f"\nWeekly  — W:{w7:+.3f}  E:{e7:+.3f}  DMI:{d7:+.3f}°C")
+        print(f"Monthly — W:{w30:+.3f}  E:{e30:+.3f}  DMI:{d30:+.3f}°C")
+
+        # Render weekly map
+        render_map(
+            anom_7d, lats_sub, lons_sub,
+            dates_7d[0], dates_7d[-1],
+            w7, e7, d7,
+            label="7-Day Mean",
+            out_path=os.path.join(OUTPUT_DIR, "sst_anomaly_weekly.png")
+        )
+
+        # Render monthly map
+        render_map(
+            anom_30d, lats_sub, lons_sub,
+            dates_30d[0], dates_30d[-1],
+            w30, e30, d30,
+            label="30-Day Mean",
+            out_path=os.path.join(OUTPUT_DIR, "sst_anomaly_monthly.png")
+        )
 
         # Write poles JSON
         poles = {
             "generated_utc": datetime.utcnow().isoformat() + "Z",
-            "date":          good_dates[-1].isoformat(),
-            "date_start":    good_dates[0].isoformat(),
-            "n_days":        len(good_dates),
-            "source":        "NOAA OISST v2.1 (NCEI direct, 1-2 day lag)",
-            "climatology":   "1971-2000 monthly mean (PSL LTM)",
-            "west_pole":     {"region": "50–70°E, 10°S–10°N", "anomaly_c": west},
-            "east_pole":     {"region": "90–110°E, 10°S–0°N", "anomaly_c": east},
-            "derived_dmi":   dmi,
-            "errors":        errors
+            "source":        "NOAA OISST v2.1 (NCEI daily files, 0.25°)",
+            "climatology":   "1971-2000 (embedded in OISST anom variable)",
+            "weekly": {
+                "date_start":  dates_7d[0].isoformat(),
+                "date_end":    dates_7d[-1].isoformat(),
+                "n_days":      len(dates_7d),
+                "west_pole":   {"region": "50–70°E, 10°S–10°N", "anomaly_c": w7},
+                "east_pole":   {"region": "90–110°E, 10°S–0°N", "anomaly_c": e7},
+                "derived_dmi": d7
+            },
+            "monthly": {
+                "date_start":  dates_30d[0].isoformat(),
+                "date_end":    dates_30d[-1].isoformat(),
+                "n_days":      len(dates_30d),
+                "west_pole":   {"region": "50–70°E, 10°S–10°N", "anomaly_c": w30},
+                "east_pole":   {"region": "90–110°E, 10°S–0°N", "anomaly_c": e30},
+                "derived_dmi": d30
+            },
+            "errors": errors
         }
-        with open(POLES_PATH, "w") as f:
+        poles_path = os.path.join(OUTPUT_DIR, "sst_poles.json")
+        with open(poles_path, "w") as f:
             json.dump(poles, f, indent=2)
-        print(f"Poles JSON: {POLES_PATH}")
+        print(f"\nPoles JSON: {poles_path}")
 
     except Exception as e:
         msg = f"SST render failed: {e}"
-        print(f"ERROR: {msg}")
+        print(f"\nERROR: {msg}")
         import traceback; traceback.print_exc()
         errors.append(msg)
-        with open(POLES_PATH, "w") as f:
-            json.dump({"generated_utc": datetime.utcnow().isoformat() + "Z",
-                       "errors": errors}, f, indent=2)
+        with open(os.path.join(OUTPUT_DIR, "sst_poles.json"), "w") as f:
+            json.dump({
+                "generated_utc": datetime.utcnow().isoformat() + "Z",
+                "errors": errors
+            }, f, indent=2)
 
-    print("Done.")
+    print("\nDone.")
 
 
 if __name__ == "__main__":
