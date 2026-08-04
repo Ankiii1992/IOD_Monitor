@@ -1,0 +1,6 @@
+{
+  "generated_utc": "2026-08-04T18:20:43.825035Z",
+  "errors": [
+    "OISST render failed: IllegalArgumentException: Points of LinearRing do not form a closed linestring"
+  ]
+}
