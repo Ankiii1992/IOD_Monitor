@@ -1,6 +1,17 @@
 {
-  "generated_utc": "2026-08-04T18:29:03.635201Z",
-  "errors": [
-    "OISST render failed: IllegalArgumentException: Points of LinearRing do not form a closed linestring"
-  ]
+  "generated_utc": "2026-08-04T18:36:39.004693Z",
+  "date": "2025-01-01",
+  "year_file": 2025,
+  "source": "NOAA OISST v2.1 highres (0.25\u00b0)",
+  "cadence": "7-day mean, updated weekly",
+  "west_pole": {
+    "region": "50\u201370\u00b0E, 10\u00b0S\u201310\u00b0N",
+    "anomaly_c": -0.252
+  },
+  "east_pole": {
+    "region": "90\u2013110\u00b0E, 10\u00b0S\u20130\u00b0N",
+    "anomaly_c": 0.371
+  },
+  "derived_dmi": -0.623,
+  "errors": []
 }
