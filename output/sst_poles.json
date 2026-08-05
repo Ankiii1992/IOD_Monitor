@@ -1,34 +1,6 @@
 {
-  "generated_utc": "2026-08-04T19:17:10.873241Z",
-  "source": "NOAA OISST v2.1 (NCEI daily files, 0.25\u00b0)",
-  "climatology": "1971-2000 (embedded in OISST anom variable)",
-  "weekly": {
-    "date_start": "2026-07-27",
-    "date_end": "2026-08-02",
-    "n_days": 7,
-    "west_pole": {
-      "region": "50\u201370\u00b0E, 10\u00b0S\u201310\u00b0N",
-      "anomaly_c": 0.66
-    },
-    "east_pole": {
-      "region": "90\u2013110\u00b0E, 10\u00b0S\u20130\u00b0N",
-      "anomaly_c": 0.426
-    },
-    "derived_dmi": 0.234
-  },
-  "monthly": {
-    "date_start": "2026-07-04",
-    "date_end": "2026-08-02",
-    "n_days": 30,
-    "west_pole": {
-      "region": "50\u201370\u00b0E, 10\u00b0S\u201310\u00b0N",
-      "anomaly_c": 0.672
-    },
-    "east_pole": {
-      "region": "90\u2013110\u00b0E, 10\u00b0S\u20130\u00b0N",
-      "anomaly_c": 0.598
-    },
-    "derived_dmi": 0.074
-  },
-  "errors": []
+  "generated_utc": "2026-08-05T05:55:14.307715Z",
+  "errors": [
+    "SST render failed: Only 0 files downloaded \u2014 need at least 7"
+  ]
 }

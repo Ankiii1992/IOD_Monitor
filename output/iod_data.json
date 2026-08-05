@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-08-04T19:16:29.436087Z",
+  "generated_utc": "2026-08-05T05:53:52.330310Z",
   "bom": {
     "source": "BOM",
     "description": "Bureau of Meteorology \u2014 HadISST based, weekly",
@@ -10,7 +10,7 @@
       "week_ending": "2026-08-02",
       "dmi": 0.63,
       "phase": "Positive",
-      "lag_days": 2
+      "lag_days": 3
     },
     "trend_4wk": [
       -0.06,
