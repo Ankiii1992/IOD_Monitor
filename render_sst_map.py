@@ -77,25 +77,32 @@ def download_file(d, tmpdir):
 
 def extract_ssta(nc_path):
     """
-    Extract Indian Ocean SSTA from one CoralTemp file.
-    Variable: sea_surface_temperature_anomaly (int16, scale_factor=0.01)
+    Extract Indian Ocean SSTA from one CoralTemp NCEI file.
+    Variable: sea_surface_temperature_anomaly
+      dims:   (time, lat, lon)  — no zlev
+      dtype:  int16
+      scale:  0.01
+      fill:   -32768
+    Coords: lat / lon  (not latitude/longitude)
     Uses set_auto_maskandscale(False) for correct int16 handling.
     Returns 2D masked array (lat, lon) in °C.
     """
     ds   = nc.Dataset(nc_path)
     var  = ds.variables['sea_surface_temperature_anomaly']
-    lats = ds.variables['latitude'][:]
-    lons = ds.variables['longitude'][:]
+    lats = ds.variables['lat'][:]
+    lons = ds.variables['lon'][:]
 
-    lat_s = int(np.argmin(np.abs(lats - LAT_S_DEG)))
-    lat_n = int(np.argmin(np.abs(lats - LAT_N_DEG)))
+    # CoralTemp lats run 89.975 → -89.975 (N→S, reversed)
+    # So index of -30S is LARGER than index of 30N — swap for slicing
+    lat_n = int(np.argmin(np.abs(lats - LAT_N_DEG)))  # smaller index (north)
+    lat_s = int(np.argmin(np.abs(lats - LAT_S_DEG)))  # larger index  (south)
     lon_w = int(np.argmin(np.abs(lons - LON_W_DEG)))
     lon_e = int(np.argmin(np.abs(lons - LON_E_DEG)))
 
     var.set_auto_maskandscale(False)
-    raw   = var[0, lat_s:lat_n+1, lon_w:lon_e+1]
+    raw   = var[0, lat_n:lat_s+1, lon_w:lon_e+1]   # (time, lat, lon) — no zlev
     scale = float(var.scale_factor)
-    fill  = int(var._FillValue)
+    fill  = int(var._FillValue)                      # -32768
     ds.close()
 
     masked = np.ma.masked_where(raw == fill, raw)
@@ -103,15 +110,16 @@ def extract_ssta(nc_path):
 
 
 def get_lats_lons(nc_path):
-    """Extract Indian Ocean lat/lon arrays from a CoralTemp file."""
-    ds   = nc.Dataset(nc_path)
-    lats = ds.variables['latitude'][:]
-    lons = ds.variables['longitude'][:]
-    lat_s = int(np.argmin(np.abs(lats - LAT_S_DEG)))
+    """Extract Indian Ocean lat/lon arrays from a CoralTemp NCEI file."""
+    ds    = nc.Dataset(nc_path)
+    lats  = ds.variables['lat'][:]    # 'lat' not 'latitude'
+    lons  = ds.variables['lon'][:]    # 'lon' not 'longitude'
+    # Lats are N→S (reversed): lat_n is smaller index, lat_s is larger
     lat_n = int(np.argmin(np.abs(lats - LAT_N_DEG)))
+    lat_s = int(np.argmin(np.abs(lats - LAT_S_DEG)))
     lon_w = int(np.argmin(np.abs(lons - LON_W_DEG)))
     lon_e = int(np.argmin(np.abs(lons - LON_E_DEG)))
-    result = (np.array(lats[lat_s:lat_n+1]),
+    result = (np.array(lats[lat_n:lat_s+1]),
               np.array(lons[lon_w:lon_e+1]))
     ds.close()
     return result
