@@ -148,9 +148,9 @@ def render_map(anom_2d, lats, lons, date_start, date_end,
     lons_2d, lats_2d = np.meshgrid(lons, lats)
     cmap    = plt.cm.RdBu_r
     vmax    = 2.0
-    dmi_col = ('#f59e0b' if dmi >= 0.4
-               else '#818cf8' if dmi <= -0.4
-               else '#94a3b8')
+    dmi_col = ('#ff7a7a' if dmi >= 0.4      # coral red for positive
+               else '#818cf8' if dmi <= -0.4  # purple for negative
+               else '#94a3b8')               # grey for neutral
     start_s = date_start.strftime("%d %b %Y")
     end_s   = date_end.strftime("%d %b %Y")
 
@@ -207,8 +207,7 @@ def render_map(anom_2d, lats, lons, date_start, date_end,
 
     # CENTRE — data source
     ax_f.text(0.50, 0.46,
-              'Data: NOAA CoralTemp v3.1  ·  '
-              'Anomaly vs 1985–1990 & 1993 climatology',
+              'Data: NOAA CoralTemp v3.1',
               color='#475569', fontsize=10, va='center',
               ha='center', fontfamily='monospace',
               transform=ax_f.transAxes)
@@ -406,8 +405,7 @@ def _draw_header_footer(fig, HDR_B, HDR_H, FTR_B, FTR_H,
               va='center',fontfamily='monospace',
               transform=ax_f.transAxes)
     ax_f.text(0.50,0.46,
-              'Data: NOAA CoralTemp v3.1  ·  '
-              'Anomaly vs 1985–1990 & 1993 climatology',
+              'Data: NOAA CoralTemp v3.1',
               color='#475569',fontsize=10,va='center',ha='center',
               fontfamily='monospace',transform=ax_f.transAxes)
     ax_f.text(0.978,0.46,WEBSITE,
