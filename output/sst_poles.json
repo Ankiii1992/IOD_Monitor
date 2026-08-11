@@ -1,34 +1,34 @@
 {
-  "generated_utc": "2026-08-06T08:41:31.460683Z",
+  "generated_utc": "2026-08-11T05:05:54.632494Z",
   "source": "NOAA CoralTemp v3.1 (NCEI, 0.05\u00b0 \u00b7 5km)",
   "climatology": "1985\u20131990 & 1993 baseline",
   "weekly": {
-    "date_start": "2026-07-28",
-    "date_end": "2026-08-03",
+    "date_start": "2026-07-31",
+    "date_end": "2026-08-06",
     "n_days": 7,
     "west_pole": {
       "region": "50\u201370\u00b0E, 10\u00b0S\u201310\u00b0N",
-      "anomaly_c": 1.019
+      "anomaly_c": 1.029
     },
     "east_pole": {
       "region": "90\u2013110\u00b0E, 10\u00b0S\u20130\u00b0N",
-      "anomaly_c": 0.371
+      "anomaly_c": 0.44
     },
-    "derived_dmi": 0.648
+    "derived_dmi": 0.589
   },
   "monthly": {
-    "date_start": "2026-07-05",
-    "date_end": "2026-08-03",
+    "date_start": "2026-07-08",
+    "date_end": "2026-08-06",
     "n_days": 30,
     "west_pole": {
       "region": "50\u201370\u00b0E, 10\u00b0S\u201310\u00b0N",
-      "anomaly_c": 0.991
+      "anomaly_c": 1.021
     },
     "east_pole": {
       "region": "90\u2013110\u00b0E, 10\u00b0S\u20130\u00b0N",
-      "anomaly_c": 0.564
+      "anomaly_c": 0.535
     },
-    "derived_dmi": 0.427
+    "derived_dmi": 0.486
   },
   "errors": []
 }
