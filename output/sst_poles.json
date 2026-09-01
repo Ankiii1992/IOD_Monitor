@@ -1,6 +1,34 @@
 {
-  "generated_utc": "2026-08-25T04:35:34.319909Z",
-  "errors": [
-    "SST render failed: Only 0 files downloaded \u2014 need at least 7"
-  ]
+  "generated_utc": "2026-09-01T09:09:49.081460Z",
+  "source": "NOAA CoralTemp v3.1 (NCEI, 0.05\u00b0 \u00b7 5km)",
+  "climatology": "1985\u20131990 & 1993 baseline",
+  "weekly": {
+    "date_start": "2026-08-23",
+    "date_end": "2026-08-29",
+    "n_days": 7,
+    "west_pole": {
+      "region": "50\u201370\u00b0E, 10\u00b0S\u201310\u00b0N",
+      "anomaly_c": 1.146
+    },
+    "east_pole": {
+      "region": "90\u2013110\u00b0E, 10\u00b0S\u20130\u00b0N",
+      "anomaly_c": 0.802
+    },
+    "derived_dmi": 0.344
+  },
+  "monthly": {
+    "date_start": "2026-07-31",
+    "date_end": "2026-08-29",
+    "n_days": 30,
+    "west_pole": {
+      "region": "50\u201370\u00b0E, 10\u00b0S\u201310\u00b0N",
+      "anomaly_c": 1.09
+    },
+    "east_pole": {
+      "region": "90\u2013110\u00b0E, 10\u00b0S\u20130\u00b0N",
+      "anomaly_c": 0.667
+    },
+    "derived_dmi": 0.423
+  },
+  "errors": []
 }
