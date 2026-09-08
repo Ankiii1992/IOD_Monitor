@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-09-01T09:08:52.878534Z",
+  "generated_utc": "2026-09-08T08:34:15.513455Z",
   "bom": {
     "source": "BOM",
     "description": "Bureau of Meteorology \u2014 HadISST based, weekly",
@@ -7,16 +7,16 @@
     "cadence": "Weekly (updates Monday)",
     "baseline": "1981\u20132010",
     "latest": {
-      "week_ending": "2026-08-30",
-      "dmi": 0.22,
+      "week_ending": "2026-09-06",
+      "dmi": 0.25,
       "phase": "Neutral",
       "lag_days": 2
     },
     "trend_4wk": [
-      0.41,
       0.18,
       0.17,
-      0.22
+      0.22,
+      0.25
     ],
     "weekly": [
       {
@@ -1202,6 +1202,10 @@
       {
         "date": "2026-08-30",
         "dmi": 0.22
+      },
+      {
+        "date": "2026-09-06",
+        "dmi": 0.25
       }
     ]
   },
