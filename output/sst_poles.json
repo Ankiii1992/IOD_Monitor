@@ -1,34 +1,6 @@
 {
-  "generated_utc": "2026-10-27T09:35:02.633754Z",
-  "source": "NOAA CoralTemp v3.1 (NCEI, 0.05\u00b0 \u00b7 5km)",
-  "climatology": "1985\u20131990 & 1993 baseline",
-  "weekly": {
-    "date_start": "2026-10-17",
-    "date_end": "2026-10-23",
-    "n_days": 7,
-    "west_pole": {
-      "region": "50\u201370\u00b0E, 10\u00b0S\u201310\u00b0N",
-      "anomaly_c": 1.273
-    },
-    "east_pole": {
-      "region": "90\u2013110\u00b0E, 10\u00b0S\u20130\u00b0N",
-      "anomaly_c": 0.706
-    },
-    "derived_dmi": 0.567
-  },
-  "monthly": {
-    "date_start": "2026-09-24",
-    "date_end": "2026-10-23",
-    "n_days": 30,
-    "west_pole": {
-      "region": "50\u201370\u00b0E, 10\u00b0S\u201310\u00b0N",
-      "anomaly_c": 1.446
-    },
-    "east_pole": {
-      "region": "90\u2013110\u00b0E, 10\u00b0S\u20130\u00b0N",
-      "anomaly_c": 0.711
-    },
-    "derived_dmi": 0.735
-  },
-  "errors": []
+  "generated_utc": "2026-11-03T12:07:08.036612Z",
+  "errors": [
+    "SST render failed: Only 0 files downloaded \u2014 need at least 7"
+  ]
 }
