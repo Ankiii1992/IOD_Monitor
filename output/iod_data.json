@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-11-03T11:35:45.360640Z",
+  "generated_utc": "2026-11-10T12:04:02.196460Z",
   "bom": {
     "source": "BOM",
     "description": "Bureau of Meteorology \u2014 HadISST based, weekly",
@@ -7,16 +7,16 @@
     "cadence": "Weekly (updates Monday)",
     "baseline": "1981\u20132010",
     "latest": {
-      "week_ending": "2026-11-01",
-      "dmi": 0.73,
+      "week_ending": "2026-11-08",
+      "dmi": 0.75,
       "phase": "Positive",
       "lag_days": 2
     },
     "trend_4wk": [
       0.88,
-      0.88,
       0.69,
-      0.73
+      0.73,
+      0.75
     ],
     "weekly": [
       {
@@ -1238,6 +1238,10 @@
       {
         "date": "2026-11-01",
         "dmi": 0.73
+      },
+      {
+        "date": "2026-11-08",
+        "dmi": 0.75
       }
     ]
   },
@@ -1249,33 +1253,33 @@
     "note": "Forecast only \u2014 not observed value",
     "forecast": [
       {
-        "date": "2026-11-15",
-        "dmi": 0.603,
-        "phase": "Positive"
-      },
-      {
         "date": "2026-12-15",
-        "dmi": 0.03,
+        "dmi": 0.176,
         "phase": "Neutral"
       },
       {
         "date": "2027-01-15",
-        "dmi": -0.071,
+        "dmi": -0.027,
         "phase": "Neutral"
       },
       {
         "date": "2027-02-15",
-        "dmi": 0.07,
+        "dmi": -0.006,
         "phase": "Neutral"
       },
       {
         "date": "2027-03-15",
-        "dmi": -0.096,
+        "dmi": -0.176,
         "phase": "Neutral"
       },
       {
         "date": "2027-04-15",
-        "dmi": -0.127,
+        "dmi": -0.037,
+        "phase": "Neutral"
+      },
+      {
+        "date": "2027-05-15",
+        "dmi": -0.071,
         "phase": "Neutral"
       }
     ]
